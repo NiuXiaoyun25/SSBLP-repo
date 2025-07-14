@@ -11,17 +11,17 @@ from dataloader import *
 from model import SAAModel
 from discrete_event_simu import simulate
 
-def main(sample_size, sample_id):
+def main(sample_size, sample_id, k: int):
     DATA_DIR = Path(f'../SingleMarketData')
-    data_loader = AirlineDataLoader(data_dir=DATA_DIR)
+    data_loader = AirlineDataLoader(k=k, data_dir=DATA_DIR)
 
     # Load the specific sample data
     ds_dict = data_loader.compute_market_demand(
-        filename=f'30T/{sample_size}Samples/ServicesDemand{sample_size}Samples_{sample_id}.csv') 
+        filename=f'{k}T/{sample_size}Samples/ServicesDemand{sample_size}Samples_{sample_id}.csv') 
     
     # Create output directory with sample info
     saa = 'saa'
-    output_dir = DATA_DIR / f'{saa}_output_30T' / f'{sample_size}Samples'
+    output_dir = DATA_DIR / f'{saa}_output_{k}T' / f'{sample_size}Samples'
     output_dir.mkdir(parents=True, exist_ok=True)
     
     # Create and solve the model
@@ -48,8 +48,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Run SAA model with given sample size and ID.')
     parser.add_argument('--sample_size', type=int, required=True, help='Sample size for SAA')
     parser.add_argument('--sample_id', type=int, required=True, help='Sample ID to process')
+    parser.add_argument('--k', type=int, required=True, help='Scaling factor for demand')
     
     args = parser.parse_args()
     
     # Run the main function with the provided arguments
-    main(args.sample_size, args.sample_id)
+    main(args.sample_size, args.sample_id, args.k)
