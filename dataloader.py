@@ -48,13 +48,13 @@ class AirlineDataLoader:
     """
     def __init__(
         self,
+        k: int,
         data_dir: Path,
         fares_file: str = "ServiceFaresAndDmds.csv",
         capacity_file: str = "FlightRmngCapacity.csv",
         host_attraction_file: str = "mean_host_demand.csv",
         OA_attraction_file: str = "mean_oa_demand.csv",
         mean_mkt_demand_file: str = "mean_market_demand.csv",
-        k=30
     ):
         self.data_dir = data_dir
         self.k = k
@@ -203,8 +203,9 @@ if __name__ == "__main__":
     data_loader = AirlineDataLoader(data_dir=DATA_DIR)
     sample_size = 10
     sample_id = 4
+    k = 30  # Scaling factor for demand
 
     # Load the specific sample data
     ds_dict = data_loader.compute_market_demand(
-        filename=f'30T/{sample_size}Samples/ServicesDemand{sample_size}Samples_{sample_id}.csv') 
+        filename=f'{k}T/{sample_size}Samples/ServicesDemand{sample_size}Samples_{sample_id}.csv') 
 
