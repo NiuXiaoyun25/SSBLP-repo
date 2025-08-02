@@ -9,10 +9,11 @@ import argparse
 
 from dataloader import *
 from model import SAAModel
-from discrete_event_simu import simulate
+from discrete_event_simu import simulate_network
 
 def main(sample_size, sample_id, k: int):
-    DATA_DIR = Path(f'../SingleMarketData')
+    # DATA_DIR = Path(f'../SingleMarketData')   # single market case
+    DATA_DIR = Path(f'../SSBLPdata')   # network case
     data_loader = AirlineDataLoader(k=k, data_dir=DATA_DIR)
 
     # Load the specific sample data
@@ -33,7 +34,8 @@ def main(sample_size, sample_id, k: int):
     sol_df = saa_model.solve(sol_file=f'sol_{sample_size}Samples_{sample_id}.csv', 
                              log_file=f'{saa}_{sample_size}Samples_{sample_id}.log')
         
-    simulated_revenue = simulate(
+    simulated_revenue = simulate_network(
+        k=k,
         data=data_loader,
         protection_df=sol_df,
     )
