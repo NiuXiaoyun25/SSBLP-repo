@@ -9,7 +9,10 @@ from pathlib import Path
 import argparse
 
 def main(sample_size, sample_id, k):
-    DATA_DIR = Path(f'../SingleMarketData')
+    # single leg
+    # DATA_DIR = Path(f'../SingleMarketData')
+    # network case
+    DATA_DIR = Path(f'../SSBLPdata')
 
     service_fares_and_demands_path = DATA_DIR / "ServiceFaresAndDmds.csv"
     demand_input = pd.read_csv(service_fares_and_demands_path)
@@ -213,7 +216,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Generate demand samples with given sample size and ID.')
     parser.add_argument('--sample_size', type=int, required=True, help='Sample size')
     parser.add_argument('--sample_id', type=int, required=True, help='Sample ID')
-    parser.add_argument('--k', type=int, default=30, help='Scaling factor for demand')
+    parser.add_argument('--k', type=int, required=True, help='Scaling factor for demand')
     
     args = parser.parse_args()
     
