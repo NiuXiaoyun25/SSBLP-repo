@@ -200,8 +200,8 @@ class SAAModel:
         # \sum_i \sum_j \sum_k A_{ijkl} y_{ijk} \le C_l
         # matrix A is not available explicitly
         def cap_cons_lhs(flt: str, y):
-            # df_flt = self.fares_demands.query("f1 == @flt | f2 == @flt")
-            df_flt = self.data.fares_df.query('f1 == @flt')
+            df_flt = self.data.fares_df.query("f1 == @flt | f2 == @flt")
+            # df_flt = self.data.fares_df.query('f1 == @flt')
             lhs = sum(y[t.Market, t.Services, t.fare_class] for t in df_flt.itertuples())
             return lhs
 
@@ -427,8 +427,8 @@ class SSBLPModel:
         # \sum_i \sum_j \sum_k A_{ijkl} y_{ijk} \le C_l
         # matrix A is not available explicitly
         def cap_cons_lhs(flt: str, y):
-            # df_flt = self.fares_demands.query("f1 == @flt | f2 == @flt")
-            df_flt = self.data.fares_df.query('f1 == @flt')
+            df_flt = self.data.fares_df.query("f1 == @flt | f2 == @flt")
+            # df_flt = self.data.fares_df.query('f1 == @flt')
             lhs = sum(y[t.Market, t.Services, t.fare_class] for t in df_flt.itertuples())
             return lhs
 
