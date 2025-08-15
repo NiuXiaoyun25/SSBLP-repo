@@ -92,9 +92,9 @@ class AirlineDataLoader:
         )
         mdf["fare_class"] = temp_df
         # single maarket
-        mdf['f1'] = mdf["Services"].str.split("-", n=2, expand=True)
+        # mdf['f1'] = mdf["Services"].str.split("-", n=2, expand=True)
         # multi-market
-        # mdf[['f1', 'f2']] = mdf["Services"].str.split("-", n=2, expand=True)
+        mdf[['f1', 'f2']] = mdf["Services"].str.split("-", n=2, expand=True)
  
         self.fares_df = mdf
   
