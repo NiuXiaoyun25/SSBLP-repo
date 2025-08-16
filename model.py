@@ -237,11 +237,11 @@ class SAAModel:
             return model.z[i, j, k, s] >= model.z0[i, s] - self.M * model.g[i, j, k, s]
         model.bigM2 = pyo.Constraint(model.N, model.S, rule=bigM_rule2)
 
-        with open(self.output_dir / 'model_output.txt', 'w') as f:
-            model.pprint(ostream=f)
-
         return model
 
+    def pprint_model(self, model: pyo.ConcreteModel):
+        with open(self.output_dir / f'{model.name}.txt', 'w') as f:
+            model.pprint(ostream=f)
 
     def solve(self, sol_file: str, log_file: str, solver_name='gurobi', tee=True):
         solver = pyo.SolverFactory(solver_name)
