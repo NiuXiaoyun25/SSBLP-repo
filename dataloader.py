@@ -115,7 +115,7 @@ class AirlineDataLoader:
             self.data_dir / filename,
             dtype={'Flights': 'str', 'CapRmng': 'int32'}
         ).set_index('Flights').assign(CapRmng=lambda x: x['CapRmng'] * self.k)
-        print(self.flights)
+
 
     def _load_host_attraction_values(self, filename: str):
         """Load and process host attraction values from a CSV file"""
