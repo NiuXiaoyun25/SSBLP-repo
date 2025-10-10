@@ -84,14 +84,8 @@ class MILPModel:
         # capacity constraints.
         # \sum_i \sum_j \sum_k A_{ijkl} y_{ijk} \le C_l
         # matrix A is not available explicitly
-        def cap_cons_lhs(flt: str, y):
-            # df_flt = self.fares_demands.query("f1 == @flt | f2 == @flt")
-            df_flt = self.data.fares_df.query('f1 == @flt')
-            lhs = sum(y[t.Market, t.Services, t.fare_class] for t in df_flt.itertuples())
-            return lhs
-
         def capacity_rule(model, l):
-            return (cap_cons_lhs(flt=l, y=model.y) <= self.data.flights.loc[l, 'CapRmng'])
+            return (self._cap_cons_lhs(flt=l, y=model.y) <= self.data.flights.loc[l, 'CapRmng'])
         model.capacity_const = pyo.Constraint(model.L, rule=capacity_rule)
 
         return model
@@ -180,6 +174,16 @@ class SAAModel:
         """Calculate derived model parameters"""
         self.M = max(self.data.ds_dict.values())
 
+    def _cap_cons_lhs(self, flt: str, y):
+        if 'f2' in self.data.fares_df.columns and not self.data.fares_df['f2'].isna().all():
+            # Network case: flight can appear in f1 or f2
+            df_flt = self.data.fares_df.query("f1 == @flt | f2 == @flt")
+        else:
+            # Single leg case: flight only appears in f1
+            df_flt = self.data.fares_df.query('f1 == @flt')
+        
+        lhs = sum(y[t.Market, t.Services, t.fare_class] for t in df_flt.itertuples())
+        return lhs
 
     def _build_model(self, name: str) -> pyo.ConcreteModel:
         model = pyo.ConcreteModel()
@@ -209,14 +213,8 @@ class SAAModel:
         # capacity constraints.
         # \sum_i \sum_j \sum_k A_{ijkl} y_{ijk} \le C_l
         # matrix A is not available explicitly
-        def cap_cons_lhs(flt: str, y):
-            df_flt = self.data.fares_df.query("f1 == @flt | f2 == @flt")
-            # df_flt = self.data.fares_df.query('f1 == @flt')
-            lhs = sum(y[t.Market, t.Services, t.fare_class] for t in df_flt.itertuples())
-            return lhs
-
         def capacity_rule(model, l):
-            return (cap_cons_lhs(flt=l, y=model.y) <= self.data.flights.loc[l, 'CapRmng'])
+            return (self._cap_cons_lhs(flt=l, y=model.y) <= self.data.flights.loc[l, 'CapRmng'])
         model.capacity_const = pyo.Constraint(model.L, rule=capacity_rule)   
 
         # Demand balance
@@ -319,6 +317,17 @@ class SBLPModel:
         if os.path.exists(self.output_dir) is False:
             os.makedirs(self.output_dir)
 
+    def _cap_cons_lhs(self, flt: str, y):
+        if 'f2' in self.data.fares_df.columns and not self.data.fares_df['f2'].isna().all():
+            # Network case: flight can appear in f1 or f2
+            df_flt = self.data.fares_df.query("f1 == @flt | f2 == @flt")
+        else:
+            # Single leg case: flight only appears in f1
+            df_flt = self.data.fares_df.query('f1 == @flt')
+        
+        lhs = sum(y[t.Market, t.Services, t.fare_class] for t in df_flt.itertuples())
+        return lhs
+
     def _build_model(self, name: str) -> pyo.ConcreteModel:
         model = pyo.ConcreteModel(name=name)
         model.name = name
@@ -340,14 +349,8 @@ class SBLPModel:
         # capacity constraints.
         # \sum_i \sum_j \sum_k A_{ijkl} y_{ijk} \le C_l
         # matrix A is not available explicitly
-        def cap_cons_lhs(flt: str, y):
-            # df_flt = self.fares_demands.query("f1 == @flt | f2 == @flt")
-            df_flt = self.data.fares_df.query('f1 == @flt')
-            lhs = sum(y[t.Market, t.Services, t.fare_class] for t in df_flt.itertuples())
-            return lhs
-
         def capacity_rule(model, l):
-            return (cap_cons_lhs(flt=l, y=model.y) <= self.data.flights.loc[l, 'CapRmng'])
+            return (self._cap_cons_lhs(flt=l, y=model.y) <= self.data.flights.loc[l, 'CapRmng'])
         model.capacity_const = pyo.Constraint(model.L, rule=capacity_rule)
 
         def demand_balance_rule(model, i):
@@ -408,6 +411,16 @@ class SSBLPModel:
         self.output_dir = output_dir
         self.model = self._build_model(model_name)
 
+    def _cap_cons_lhs(self, flt: str, y):
+        if 'f2' in self.data.fares_df.columns and not self.data.fares_df['f2'].isna().all():
+            # Network case: flight can appear in f1 or f2
+            df_flt = self.data.fares_df.query("f1 == @flt | f2 == @flt")
+        else:
+            # Single leg case: flight only appears in f1
+            df_flt = self.data.fares_df.query('f1 == @flt')
+        
+        lhs = sum(y[t.Market, t.Services, t.fare_class] for t in df_flt.itertuples())
+        return lhs
 
     def _build_model(self, name: str) -> pyo.ConcreteModel:
         model = pyo.ConcreteModel()
@@ -427,24 +440,12 @@ class SSBLPModel:
             return (1 / self.data.num_scenarios) * sum(self.data.r[i, j, k] * model.x[i, j, k, s] for (i, j, k) in model.N for s in model.S)
         model.obj = pyo.Objective(rule=objective_rule, sense=maximize)
 
-        def revenue_rule(model):
-            sample_revenue = (1 / self.data.num_scenarios) * sum(self.data.r[i, j, k] * model.x[i, j, k, s] for (i, j, k) in model.N for s in model.S)
-            y_revenue = sum(self.data.r[i, j, k] * model.y[i, j, k] for (i, j, k) in model.N)
-            return y_revenue >= sample_revenue
-        model.revenue_ct = pyo.Constraint(rule=revenue_rule)
-
         # capacity constraints.
         # \sum_i \sum_j \sum_k A_{ijkl} y_{ijk} \le C_l
         # matrix A is not available explicitly
-        def cap_cons_lhs(flt: str, y):
-            df_flt = self.data.fares_df.query("f1 == @flt | f2 == @flt")
-            # df_flt = self.data.fares_df.query('f1 == @flt')
-            lhs = sum(y[t.Market, t.Services, t.fare_class] for t in df_flt.itertuples())
-            return lhs
-
         def capacity_rule(model, l):
-            return (cap_cons_lhs(flt=l, y=model.y) <= self.data.flights.loc[l, 'CapRmng'])
-        model.capacity_const = pyo.Constraint(model.L, rule=capacity_rule)
+            return (self._cap_cons_lhs(flt=l, y=model.y) <= self.data.flights.loc[l, 'CapRmng'])
+        model.capacity_const = pyo.Constraint(model.L, rule=capacity_rule)   
 
         def y_demand_balance_rule(model, i):
             return (model.y0[i] + sum(model.y[mkt, j, k] for (mkt, j, k) in model.N if i == mkt) 
