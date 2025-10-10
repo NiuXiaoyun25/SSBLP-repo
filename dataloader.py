@@ -91,10 +91,10 @@ class AirlineDataLoader:
             mdf["fare_class"].str.replace("Fare_", "").str.split("_", expand=True)
         )
         mdf["fare_class"] = temp_df
-        # single maarket
-        # mdf['f1'] = mdf["Services"].str.split("-", n=2, expand=True)
-        # multi-market
-        mdf[['f1', 'f2']] = mdf["Services"].str.split("-", n=2, expand=True)
+        flight_segments = mdf["Services"].str.split("-", expand=True)
+        # Dynamically assign flight column names based on number of segments
+        for i in range(flight_segments.shape[1]):
+            mdf[f'f{i+1}'] = flight_segments.iloc[:, i]
  
         self.fares_df = mdf
   
