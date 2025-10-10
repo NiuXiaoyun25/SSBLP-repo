@@ -525,6 +525,156 @@ class SSBLPModel:
         
         return None
 
+class NestedFluidModel:
+    def __init__(
+        self,
+        model_name: str,
+        output_dir: Path,
+        data_loader: AirlineDataLoader,
+        market_demand: Dict[str, float] = None,
+    ):
+        self.data = data_loader
+        self.market_demand = market_demand if market_demand is not None else self.data.mean_market_demand
+        os.makedirs(output_dir, exist_ok=True)
+        self.output_dir = output_dir
+
+        # Precompute a per-(i,j) ordered fare list to implement the nesting sums in (5f)
+        self.model = self._build_model(model_name)
+
+    def _cap_cons_lhs(self, flt: str, y):
+        """Unified capacity constraint left-hand side for both single leg and network cases"""
+        # Check if f2 column exists and has non-null values to determine if it's network case
+        if 'f2' in self.data.fares_df.columns and not self.data.fares_df['f2'].isna().all():
+            # Network case: flight can appear in f1 or f2
+            df_flt = self.data.fares_df.query("f1 == @flt | f2 == @flt")
+        else:
+            # Single leg case: flight only appears in f1
+            df_flt = self.data.fares_df.query('f1 == @flt')
+        
+        lhs = sum(y[t.Market, t.Services, t.fare_class] for t in df_flt.itertuples())
+        return lhs
+
+    def _build_model(self, name: str) -> pyo.ConcreteModel:
+        m = pyo.ConcreteModel()
+        m.name = name
+
+        # Sets
+        m.I = pyo.Set(initialize=self.data.fares_df["Market"].unique().tolist())
+        m.L = pyo.Set(initialize=self.data.flights.index.unique().tolist())
+        m.N = pyo.Set(initialize=self.data.products)  # tuples (i,j,k)
+
+        # Variables
+        m.z = pyo.Var(m.N, domain=pyo.NonNegativeReals)       # realized sales per product
+        m.z0 = pyo.Var(m.I, domain=pyo.NonNegativeReals)      # outside option market sales
+        m.y = pyo.Var(m.N, domain=pyo.NonNegativeReals)   # protection levels
+        m.lmbda = pyo.Var(m.I, domain=pyo.NonNegativeReals)   # lambda_i
+
+        # Objective: (5a) maximize sum r_{i,j,k} * z_{i,j,k}
+        def obj_rule(m):
+            return sum(self.data.r[i, j, k] * m.z[i, j, k] for (i, j, k) in m.N)
+        m.obj = pyo.Objective(rule=obj_rule, sense=maximize)
+
+        # capacity constraints.
+        # \sum_i \sum_j \sum_k A_{ijkl} y_{ijk} \le C_l
+        # matrix A is not available explicitly
+        def capacity_rule(model, l):
+            return (self._cap_cons_lhs(flt=l, y=model.y) <= self.data.flights.loc[l, 'CapRmng'])
+        m.capacity_const = pyo.Constraint(m.L, rule=capacity_rule)
+
+        # (5c) market demand balance: sum_jk z_{i,j,k} + z_{i0} = D_i
+        def demand_balance(m, i):
+            return (m.z0[i] + sum(m.z[mkt, j, k] for (mkt, j, k) in m.N if mkt == i) 
+                    == self.data.mean_market_demand[i])
+        m.demand_balance = pyo.Constraint(m.I, rule=demand_balance)
+
+        # (5d) scale with λ: z_{i,j,k} ≤ v_{i,j,k} * λ_i
+        def scale_upper(m, i, j, k):
+            return m.z[i, j, k] <= self.data.host_attraction[(i, j, k)] * m.lmbda[i]
+        m.scale_upper = pyo.Constraint(m.N, rule=scale_upper)
+
+        # (5e) outside option lower bound: z_{i0} ≥ v_{i0} * λ_i
+        def outside_lower(m, i):
+            return m.z0[i] >= self.data.OA_attraction[i] * m.lmbda[i]
+        m.outside_lower = pyo.Constraint(m.I, rule=outside_lower)
+
+        fares = sorted([chr(ord("A") + r) for r in range(8)], reverse=True)
+        # (5f) nesting with protection levels y:
+        # z_ijH <= y_ijH
+        # z_ijG + z_ijH <= y_ijG + y_ijH
+        # z_ijF + z_ijG + z_ijH <= y_ijF + y_ijG + y_ijH
+        # ...
+        # z_ijA + ... + z_ijH <= y_ijA + ... + y_ijH
+        def nesting_rule(m, i, j, k):
+            ij_products = [(mkt, svc, fc) for (mkt, svc, fc) in m.N if mkt == i and svc == j]
+            ij_fares = sorted(set(fc for (_, _, fc) in ij_products), reverse=True)  # H, G, F, ..., A
+            
+            # For fare class k, sum all sales from k down to the highest fare class
+            # (k and all higher fare classes)
+            lhs = sum(m.z[i, j, fc] for fc in ij_fares if ord(fc) >= ord(k))
+            rhs = sum(m.y[i, j, fc] for fc in ij_fares if ord(fc) >= ord(k))
+            
+            return lhs <= rhs
+        m.nesting = pyo.Constraint(m.N, rule=nesting_rule)
+
+        return m
+
+    def solve(self, sol_file: str, log_file: str, solver_name="gurobi", tee=True):
+        solver = pyo.SolverFactory(solver_name)
+        options = {
+            "LogFile": str(self.output_dir / log_file),
+            "LogToConsole": 1 if tee else 0,
+        }
+
+        # Write LP file before solving
+        lp_path = self.output_dir / (self.model.name + '.lp')
+        self.model.write(str(lp_path), io_options={'symbolic_solver_labels': True})
+
+        results = solver.solve(self.model, tee=tee, options=options)
+
+        if results.solver.termination_condition == TerminationCondition.optimal:
+            # Save protection levels to sol_file (consistent with other model classes)
+            sol_df = pd.DataFrame.from_dict(
+                {(i, j, k): pyo.value(self.model.y[i, j, k]) for (i, j, k) in self.model.N},
+                orient='index',
+                columns=['Protection_Level']
+            )
+            sol_df.index = pd.MultiIndex.from_tuples(sol_df.index, names=['Market', 'Services', 'FareClass'])
+            sol_df.reset_index(inplace=True)
+            sol_df.columns = ['Market', 'Services', 'FareClass', 'Protection_Level']
+            sol_df.to_csv(self.output_dir / sol_file, index=False)
+
+            # export z, z0, lambda and objective for inspection
+            z_df = (
+                pd.DataFrame(
+                    [(i, j, k, pyo.value(self.model.z[i, j, k])) for (i, j, k) in self.model.N],
+                    columns=["Market", "Services", "FareClass", "Sales"],
+                )
+            )
+            z_df.to_csv(self.output_dir / f"{self.model.name}_z.csv", index=False)
+
+            z0_df = pd.DataFrame(
+                [(i, pyo.value(self.model.z0[i])) for i in self.model.I],
+                columns=["Market", "OutsideSales"],
+            )
+            z0_df.to_csv(self.output_dir / f"{self.model.name}_z0.csv", index=False)
+
+            lam_df = pd.DataFrame(
+                [(i, pyo.value(self.model.lmbda[i])) for i in self.model.I],
+                columns=["Market", "Lambda"],
+            )
+            lam_df.to_csv(self.output_dir / f"{self.model.name}_lambda.csv", index=False)
+
+            pd.Series({"objective": pyo.value(self.model.obj)}).to_csv(
+                self.output_dir / f"{self.model.name}_obj.csv"
+            )
+            return {
+                "objective": pyo.value(self.model.obj),
+                "protection_levels_df": sol_df,
+                "z_df": z_df,
+                "z0_df": z0_df,
+                "lambda_df": lam_df,
+            }
+        return None
 
 
 if __name__ == "__main__":
