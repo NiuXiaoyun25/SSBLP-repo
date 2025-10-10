@@ -26,6 +26,16 @@ class MILPModel:
         """Calculate derived model parameters"""
         self.M = max(self.data.mean_market_demand.values()) / min(self.data.host_attraction.values())
 
+    def _cap_cons_lhs(self, flt: str, y):
+        if 'f2' in self.data.fares_df.columns and not self.data.fares_df['f2'].isna().all():
+            # Network case: flight can appear in f1 or f2
+            df_flt = self.data.fares_df.query("f1 == @flt | f2 == @flt")
+        else:
+            # Single leg case: flight only appears in f1
+            df_flt = self.data.fares_df.query('f1 == @flt')
+        
+        lhs = sum(y[t.Market, t.Services, t.fare_class] for t in df_flt.itertuples())
+        return lhs
 
     def _build_model(self, name: str) -> pyo.ConcreteModel:
         model = pyo.ConcreteModel()
