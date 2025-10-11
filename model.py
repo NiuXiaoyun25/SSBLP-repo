@@ -11,7 +11,17 @@ import time
 from dataloader import *
 
 
-class MILPModel: 
+class BaseModel:
+    def _cap_cons_lhs(self, flt: str, y):
+        if 'f2' in self.data.fares_df.columns and not self.data.fares_df['f2'].isna().all():
+            df_flt = self.data.fares_df.query("f1 == @flt | f2 == @flt")
+        else:
+            df_flt = self.data.fares_df.query('f1 == @flt')
+        lhs = sum(y[t.Market, t.Services, t.fare_class] for t in df_flt.itertuples())
+        return lhs
+
+
+class MILPModel(BaseModel): 
     def __init__(self, model_name: str, output_dir: Path, data_loader: AirlineDataLoader):
         self.data = data_loader
         self._calculate_model_parameters()
@@ -25,17 +35,6 @@ class MILPModel:
     def _calculate_model_parameters(self):
         """Calculate derived model parameters"""
         self.M = max(self.data.mean_market_demand.values()) / min(self.data.host_attraction.values())
-
-    def _cap_cons_lhs(self, flt: str, y):
-        if 'f2' in self.data.fares_df.columns and not self.data.fares_df['f2'].isna().all():
-            # Network case: flight can appear in f1 or f2
-            df_flt = self.data.fares_df.query("f1 == @flt | f2 == @flt")
-        else:
-            # Single leg case: flight only appears in f1
-            df_flt = self.data.fares_df.query('f1 == @flt')
-        
-        lhs = sum(y[t.Market, t.Services, t.fare_class] for t in df_flt.itertuples())
-        return lhs
 
     def _build_model(self, name: str) -> pyo.ConcreteModel:
         model = pyo.ConcreteModel()
@@ -156,7 +155,7 @@ class MILPModel:
         return None
 
 
-class SAAModel:
+class SAAModel(BaseModel):
     """SAA model for choice-based demand with stockout substitution (MILP)."""
     
     def __init__(self, model_name: str, output_dir: Path, data_loader: AirlineDataLoader):
@@ -173,17 +172,6 @@ class SAAModel:
     def _calculate_model_parameters(self):
         """Calculate derived model parameters"""
         self.M = max(self.data.ds_dict.values())
-
-    def _cap_cons_lhs(self, flt: str, y):
-        if 'f2' in self.data.fares_df.columns and not self.data.fares_df['f2'].isna().all():
-            # Network case: flight can appear in f1 or f2
-            df_flt = self.data.fares_df.query("f1 == @flt | f2 == @flt")
-        else:
-            # Single leg case: flight only appears in f1
-            df_flt = self.data.fares_df.query('f1 == @flt')
-        
-        lhs = sum(y[t.Market, t.Services, t.fare_class] for t in df_flt.itertuples())
-        return lhs
 
     def _build_model(self, name: str) -> pyo.ConcreteModel:
         model = pyo.ConcreteModel()
@@ -308,7 +296,7 @@ class SAAModel:
         return None
         
 
-class SBLPModel:
+class SBLPModel(BaseModel):
     def __init__(self, model_name: str, output_dir: Path, data_loader: AirlineDataLoader):
         self.data = data_loader
         self.output_dir = output_dir
@@ -317,16 +305,6 @@ class SBLPModel:
         if os.path.exists(self.output_dir) is False:
             os.makedirs(self.output_dir)
 
-    def _cap_cons_lhs(self, flt: str, y):
-        if 'f2' in self.data.fares_df.columns and not self.data.fares_df['f2'].isna().all():
-            # Network case: flight can appear in f1 or f2
-            df_flt = self.data.fares_df.query("f1 == @flt | f2 == @flt")
-        else:
-            # Single leg case: flight only appears in f1
-            df_flt = self.data.fares_df.query('f1 == @flt')
-        
-        lhs = sum(y[t.Market, t.Services, t.fare_class] for t in df_flt.itertuples())
-        return lhs
 
     def _build_model(self, name: str) -> pyo.ConcreteModel:
         model = pyo.ConcreteModel(name=name)
@@ -403,24 +381,13 @@ class SBLPModel:
         return None
 
 
-class SSBLPModel:
+class SSBLPModel(BaseModel):
 
     def __init__(self, model_name: str, output_dir: Path, data_loader: AirlineDataLoader):
         self.data = data_loader
         os.makedirs(output_dir, exist_ok=True)  # Ensure output directory exists
         self.output_dir = output_dir
         self.model = self._build_model(model_name)
-
-    def _cap_cons_lhs(self, flt: str, y):
-        if 'f2' in self.data.fares_df.columns and not self.data.fares_df['f2'].isna().all():
-            # Network case: flight can appear in f1 or f2
-            df_flt = self.data.fares_df.query("f1 == @flt | f2 == @flt")
-        else:
-            # Single leg case: flight only appears in f1
-            df_flt = self.data.fares_df.query('f1 == @flt')
-        
-        lhs = sum(y[t.Market, t.Services, t.fare_class] for t in df_flt.itertuples())
-        return lhs
 
     def _build_model(self, name: str) -> pyo.ConcreteModel:
         model = pyo.ConcreteModel()
@@ -525,7 +492,7 @@ class SSBLPModel:
         
         return None
 
-class NestedFluidModel:
+class NestedFluidModel(BaseModel):
     def __init__(
         self,
         model_name: str,
@@ -540,19 +507,6 @@ class NestedFluidModel:
 
         # Precompute a per-(i,j) ordered fare list to implement the nesting sums in (5f)
         self.model = self._build_model(model_name)
-
-    def _cap_cons_lhs(self, flt: str, y):
-        """Unified capacity constraint left-hand side for both single leg and network cases"""
-        # Check if f2 column exists and has non-null values to determine if it's network case
-        if 'f2' in self.data.fares_df.columns and not self.data.fares_df['f2'].isna().all():
-            # Network case: flight can appear in f1 or f2
-            df_flt = self.data.fares_df.query("f1 == @flt | f2 == @flt")
-        else:
-            # Single leg case: flight only appears in f1
-            df_flt = self.data.fares_df.query('f1 == @flt')
-        
-        lhs = sum(y[t.Market, t.Services, t.fare_class] for t in df_flt.itertuples())
-        return lhs
 
     def _build_model(self, name: str) -> pyo.ConcreteModel:
         m = pyo.ConcreteModel()
@@ -676,7 +630,7 @@ class NestedFluidModel:
             }
         return None
 
-class NestedBigM:
+class NestedBigM(BaseModel):
     def __init__(
         self,
         model_name: str,
@@ -704,19 +658,6 @@ class NestedBigM:
                 self.M[(i, j, k)] = max(self.market_demand[i], ratio * self.market_demand[i])
 
         self.model = self._build_model(model_name)
-
-    def _cap_cons_lhs(self, flt: str, y):
-        """Unified capacity constraint left-hand side for both single leg and network cases"""
-        # Check if f2 column exists and has non-null values to determine if it's network case
-        if 'f2' in self.data.fares_df.columns and not self.data.fares_df['f2'].isna().all():
-            # Network case: flight can appear in f1 or f2
-            df_flt = self.data.fares_df.query("f1 == @flt | f2 == @flt")
-        else:
-            # Single leg case: flight only appears in f1
-            df_flt = self.data.fares_df.query('f1 == @flt')
-        
-        lhs = sum(y[t.Market, t.Services, t.fare_class] for t in df_flt.itertuples())
-        return lhs
 
     def _build_model(self, name: str) -> pyo.ConcreteModel:
         m = pyo.ConcreteModel()
