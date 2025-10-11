@@ -1,4 +1,3 @@
-from xml.parsers.expat import model
 import pyomo.environ as pyo
 from pyomo.environ import *
 import os
