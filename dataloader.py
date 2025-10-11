@@ -40,9 +40,9 @@ class AirlineDataLoader:
             Loads and processes OA attraction values from a CSV file.
         _load_mean_market_demand(filename):
             Loads and processes mean market demand data, scaling by factor k.
-        read_demand_samples(filename):
+        _read_demand_samples(filename):
             Loads demand samples from a CSV file and stores the number of scenarios.
-        compute_market_demand(filename):
+        compute_demand_samples(filename):
             Computes total market demand from demand samples, combining host and OA demand,
             and stores the result in a dictionary for easy querying.
     """
@@ -169,7 +169,7 @@ class AirlineDataLoader:
         self.num_scenarios = df['Sample'].nunique()
 
 
-    def compute_market_demand(self, filename: Path):
+    def compute_demand_samples(self, filename: Path):
         # Compute market demand from demand samples
         self._read_demand_samples(filename)
  
