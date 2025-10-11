@@ -161,7 +161,7 @@ class AirlineDataLoader:
         print(self.mean_market_demand)
     
 
-    def read_demand_samples(self, filename: Path) -> pd.DataFrame:
+    def _read_demand_samples(self, filename: Path) -> pd.DataFrame:
 
         df = pd.read_csv(self.data_dir / filename).rename(mapper=rename_cols, axis="columns")
 
@@ -171,7 +171,7 @@ class AirlineDataLoader:
 
     def compute_market_demand(self, filename: Path):
         # Compute market demand from demand samples
-        self.read_demand_samples(filename)
+        self._read_demand_samples(filename)
  
         samples_oa = self.demand_samples[pd.isna(self.demand_samples["Class"])].copy()
         samples_host = self.demand_samples[~pd.isna(self.demand_samples["Class"])].copy()
