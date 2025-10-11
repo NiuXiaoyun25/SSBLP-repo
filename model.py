@@ -19,17 +19,16 @@ class BaseModel:
         lhs = sum(y[t.Market, t.Services, t.fare_class] for t in df_flt.itertuples())
         return lhs
 
+    def _make_output_dir(self, output_dir: Path):
+        os.makedirs(output_dir, exist_ok=True)
+        self.output_dir = output_dir
 
 class MILPModel(BaseModel): 
     def __init__(self, model_name: str, output_dir: Path, data_loader: AirlineDataLoader):
         self.data = data_loader
+        self._make_output_dir(output_dir)
         self._calculate_model_parameters()
         self.model = self._build_model(model_name)
-        self.output_dir = output_dir
-
-        if os.path.exists(self.output_dir) is False:
-            os.makedirs(self.output_dir)
-
 
     def _calculate_model_parameters(self):
         """Calculate derived model parameters"""
@@ -160,13 +159,8 @@ class SAAModel(BaseModel):
     def __init__(self, model_name: str, output_dir: Path, data_loader: AirlineDataLoader):
         self.data = data_loader
         self._calculate_model_parameters()   # big-M
-        os.makedirs(output_dir, exist_ok=True)  # Ensure output directory exists
-        self.output_dir = output_dir
+        self._make_output_dir(output_dir)
         self.model = self._build_model(model_name)
-        
-        if not os.path.exists(self.output_dir):
-            os.makedirs(self.output_dir)
-
 
     def _calculate_model_parameters(self):
         """Calculate derived model parameters"""
@@ -298,12 +292,8 @@ class SAAModel(BaseModel):
 class SBLPModel(BaseModel):
     def __init__(self, model_name: str, output_dir: Path, data_loader: AirlineDataLoader):
         self.data = data_loader
-        self.output_dir = output_dir
+        self._make_output_dir(output_dir)
         self.model = self._build_model(model_name)
-
-        if os.path.exists(self.output_dir) is False:
-            os.makedirs(self.output_dir)
-
 
     def _build_model(self, name: str) -> pyo.ConcreteModel:
         model = pyo.ConcreteModel(name=name)
@@ -384,8 +374,7 @@ class SSBLPModel(BaseModel):
 
     def __init__(self, model_name: str, output_dir: Path, data_loader: AirlineDataLoader):
         self.data = data_loader
-        os.makedirs(output_dir, exist_ok=True)  # Ensure output directory exists
-        self.output_dir = output_dir
+        self._make_output_dir(output_dir)
         self.model = self._build_model(model_name)
 
     def _build_model(self, name: str) -> pyo.ConcreteModel:
