@@ -87,12 +87,6 @@ class MILPModel(BaseModel):
 
         return model
 
-
-    """ def output_model(self, lp_file_loc='model_formulation.txt'):
-        with open(lp_file_loc, 'w') as f:
-            self.model.pprint(ostream=f) """
-
-
     def solve(self, sol_file: str, log_file: str, solver_name='gurobi', tee=True):
         solver = pyo.SolverFactory(solver_name)
         options = {
@@ -108,7 +102,6 @@ class MILPModel(BaseModel):
                 'protection_levels': {(i, j, k): self.model.y[i, j, k].value
                                       for (i, j, k) in self.model.N}
             }
-
 
             sol_df = pd.DataFrame.from_dict(
                 solution['protection_levels'],
@@ -428,8 +421,6 @@ class SSBLPModel(BaseModel):
                 )
             return nest_cts
         model.nesting_ct = pyo.Constraint(model.N, model.S, rule=nesting_rule)
-
-        # model.write(str(self.output_dir / f'{model.name}.lp'), io_options={'symbolic_solver_labels': True})
 
         return model
 
