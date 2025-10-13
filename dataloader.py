@@ -196,16 +196,3 @@ class AirlineDataLoader:
         return ds_dict
 
 
-if __name__ == "__main__":
-    # Set up the data loader
-    DATA_DIR = Path(f'../SingleMarketData')    # single market case
-    # DATA_DIR = Path(f'../SSBLPdata')   # network case
-    data_loader = AirlineDataLoader(data_dir=DATA_DIR)
-    sample_size = 10
-    sample_id = 4
-    k = 30  # Scaling factor for demand
-
-    # Load the specific sample data
-    ds_dict = data_loader.compute_market_demand(
-        filename=f'{k}T/{sample_size}Samples/ServicesDemand{sample_size}Samples_{sample_id}.csv') 
-
