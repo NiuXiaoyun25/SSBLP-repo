@@ -63,6 +63,7 @@ class AirlineDataLoader:
         self._load_host_attraction_values(host_attraction_file)
         self._load_OA_attraction_values(OA_attraction_file)
         self._load_mean_market_demand(mean_mkt_demand_file)
+        self._compute_max_seats_per_product()
 
 
     def _load_and_process_fares(self, filename: str):
@@ -167,6 +168,30 @@ class AirlineDataLoader:
 
         self.demand_samples = df
         self.num_scenarios = df['Sample'].nunique()
+
+
+    def _compute_max_seats_per_product(self):
+        max_seats_col = []
+        flight_cols = ['f1', 'f2']
+        for row in self.fares_df.itertuples():
+            # Collect non-null flight leg IDs for this product
+            flight_legs = []
+            for col in flight_cols:
+                leg = getattr(row, col)
+                if pd.notna(leg):
+                    flight_legs.append(leg)
+
+            leg_capacities = []
+            for leg in flight_legs:
+                leg_capacities.append(int(self.flights.loc[leg, 'CapRmng']))
+
+            capacity = int(min(leg_capacities)) if leg_capacities else 0
+
+            # Store result
+            max_seats_col.append(capacity)
+
+        # Store as attribute and as a column on fares_df
+        self.fares_df['max_seats'] = max_seats_col
 
 
     def compute_demand_samples(self, filename: Path):
