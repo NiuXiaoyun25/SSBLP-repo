@@ -547,7 +547,7 @@ class SampleBasedNestedLP(BaseModel):
         # market demand balance: sum_jk z_{i,j,k}^{s} + z_{i0}^{s} = D_i^{(s)}
         def demand_balance(m, i, s):
             return (m.z0[i, s] + sum(m.z[mkt, j, k, s] for (mkt, j, k) in m.N if mkt == i) 
-                    == self.data.mean_market_demand[i])
+                    == self.data.ds_dict[(i, s)])
         m.demand_balance = pyo.Constraint(m.I, m.S, rule=demand_balance)
 
         # scale with λ: z_{i,j,k}^{s} ≤ v_{i,j,k} * λ_{i}^{s}
