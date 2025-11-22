@@ -653,10 +653,10 @@ class SampleBasedNestedLP(BaseModel):
             dict with objective and variable solutions
         """
         sub_m = self.model.clone()
-
+        lookup = y_values.set_index(['Market', 'Services', 'FareClass'])['Protection_Level']
         # Fix y
         for (i, j, k) in sub_m.N:
-            sub_m.y[i, j, k].fix(y_values.get((i, j, k), 0.0))
+            sub_m.y[i, j, k].fix(lookup.get((i, j, k), 0.0))
 
         if write_lp:
             lp_path = self.output_dir / f"{sub_m.name}_fixed_y.lp"
