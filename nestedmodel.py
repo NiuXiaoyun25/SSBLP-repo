@@ -145,50 +145,7 @@ class NestedLP(BaseModel):
         results = solver.solve(self.model, tee=tee, options=options)
 
         if results.solver.termination_condition == TerminationCondition.optimal:
-            # Save protection levels to sol_file (consistent with other model classes)
-            sol_df = pd.DataFrame.from_dict(
-                {(i, j, k): pyo.value(self.model.y[i, j, k]) for (i, j, k) in self.model.N},
-                orient='index',
-                columns=['Protection_Level']
-            )
-            sol_df.index = pd.MultiIndex.from_tuples(sol_df.index, names=['Market', 'Services', 'FareClass'])
-            sol_df.reset_index(inplace=True)
-            sol_df.columns = ['Market', 'Services', 'FareClass', 'Protection_Level']
-            sol_df.to_csv(self.output_dir / sol_file, index=False)
-
-            # export z, z0, lambda and objective for inspection
-            z_df = (
-                pd.DataFrame(
-                    [(i, j, k, pyo.value(self.model.z[i, j, k]), 
-                      pyo.value(self.model.z[i, j, k]) / self.data.host_attraction[(i, j, k)]) 
-                      for (i, j, k) in self.model.N],
-                    columns=["Market", "Services", "FareClass", "Sales", "z/v"],
-                )
-            )
-            z_df.to_csv(self.output_dir / f"{self.model.name}_z.csv", index=False)
-
-            z0_df = pd.DataFrame(
-                [(i, pyo.value(self.model.z0[i])) for i in self.model.I],
-                columns=["Market", "OutsideSales"],
-            )
-            z0_df.to_csv(self.output_dir / f"{self.model.name}_z0.csv", index=False)
-
-            lam_df = pd.DataFrame(
-                [(i, pyo.value(self.model.lmbda[i])) for i in self.model.I],
-                columns=["Market", "Lambda"],
-            )
-            lam_df.to_csv(self.output_dir / f"{self.model.name}_lambda.csv", index=False)
-
-            pd.Series({"objective": pyo.value(self.model.obj)}).to_csv(
-                self.output_dir / f"{self.model.name}_obj.csv"
-            )
-            return {
-                "objective": pyo.value(self.model.obj),
-                "protection_levels_df": sol_df,
-                "z_df": z_df,
-                "z0_df": z0_df,
-                "lambda_df": lam_df,
-            }
+            return self._export_solution(sol_file)
         return None
 
 class NestedBigM(BaseModel):
