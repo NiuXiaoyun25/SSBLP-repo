@@ -577,6 +577,52 @@ class SampleBasedNestedLP(BaseModel):
 
         return m
  
+    def _export_solution(self, sol_file: str):
+        """Export solution to CSV files and return solution dictionary."""
+        # Save protection levels to sol_file
+        sol_df = pd.DataFrame.from_dict(
+            {(i, j, k): pyo.value(self.model.y[i, j, k]) for (i, j, k) in self.model.N},
+            orient='index',
+            columns=['Protection_Level']
+        )
+        sol_df.index = pd.MultiIndex.from_tuples(sol_df.index, names=['Market', 'Services', 'FareClass'])
+        sol_df.reset_index(inplace=True)
+        sol_df.columns = ['Market', 'Services', 'FareClass', 'Protection_Level']
+        sol_df.to_csv(self.output_dir / sol_file, index=False)
+
+        # export z, z0, lambda and objective for inspection
+        z_df = pd.DataFrame(
+            [(i, j, k, s, pyo.value(self.model.z[i, j, k, s]), 
+              pyo.value(self.model.z[i, j, k, s]) / self.data.host_attraction[(i, j, k)]) 
+             for (i, j, k) in self.model.N 
+             for s in self.model.S],
+            columns=["Market", "Services", "FareClass", "Sample", "Sales", "z/v"],
+        )
+        z_df.to_csv(self.output_dir / f"{self.model.name}_z.csv", index=False)
+
+        z0_df = pd.DataFrame(
+            [(i, s, pyo.value(self.model.z0[i, s])) for i in self.model.I for s in self.model.S],
+            columns=["Market", "Sample", "OutsideSales"],
+        )
+        z0_df.to_csv(self.output_dir / f"{self.model.name}_z0.csv", index=False)
+
+        lam_df = pd.DataFrame(
+            [(i, s, pyo.value(self.model.lmbda[i, s])) for i in self.model.I for s in self.model.S],
+            columns=["Market", "Sample", "Lambda"],
+        )
+        lam_df.to_csv(self.output_dir / f"{self.model.name}_lambda.csv", index=False)
+
+        pd.Series({"objective": pyo.value(self.model.obj)}).to_csv(
+            self.output_dir / f"{self.model.name}_obj.csv"
+        )
+        
+        return {
+            "objective": pyo.value(self.model.obj),
+            "protection_levels_df": sol_df,
+            "z_df": z_df,
+            "z0_df": z0_df
+        }
+
     def solve(self, sol_file: str, log_file: str, solver_name="gurobi", tee=True):
         solver = pyo.SolverFactory(solver_name)
         options = {
@@ -591,58 +637,15 @@ class SampleBasedNestedLP(BaseModel):
         results = solver.solve(self.model, tee=tee, options=options)
 
         if results.solver.termination_condition == TerminationCondition.optimal:
-            # Save protection levels to sol_file (consistent with other model classes)
-            sol_df = pd.DataFrame.from_dict(
-                {(i, j, k): pyo.value(self.model.y[i, j, k]) for (i, j, k) in self.model.N},
-                orient='index',
-                columns=['Protection_Level']
-            )
-            sol_df.index = pd.MultiIndex.from_tuples(sol_df.index, names=['Market', 'Services', 'FareClass'])
-            sol_df.reset_index(inplace=True)
-            sol_df.columns = ['Market', 'Services', 'FareClass', 'Protection_Level']
-            sol_df.to_csv(self.output_dir / sol_file, index=False)
-
-            # export z, z0, lambda and objective for inspection
-            z_df = (
-                pd.DataFrame(
-                    [(i, j, k, s, pyo.value(self.model.z[i, j, k, s]), 
-                      pyo.value(self.model.z[i, j, k, s]) / self.data.host_attraction[(i, j, k)]) 
-                     for (i, j, k) in self.model.N 
-                     for s in self.model.S],
-                    columns=["Market", "Services", "FareClass", "Sample", "Sales", "z/v"],
-                )
-            )
-            z_df.to_csv(self.output_dir / f"{self.model.name}_z.csv", index=False)
-
-            z0_df = pd.DataFrame(
-                [(i, s, pyo.value(self.model.z0[i, s])) for i in self.model.I for s in self.model.S],
-                columns=["Market", "Sample", "OutsideSales"],
-            )
-            z0_df.to_csv(self.output_dir / f"{self.model.name}_z0.csv", index=False)
-
-            lam_df = pd.DataFrame(
-                [(i, s, pyo.value(self.model.lmbda[i, s])) for i in self.model.I for s in self.model.S],
-                columns=["Market", "Sample", "Lambda"],
-            )
-            lam_df.to_csv(self.output_dir / f"{self.model.name}_lambda.csv", index=False)
-
-            pd.Series({"objective": pyo.value(self.model.obj)}).to_csv(
-                self.output_dir / f"{self.model.name}_obj.csv"
-            )
-            return {
-                "objective": pyo.value(self.model.obj),
-                "protection_levels_df": sol_df,
-                "z_df": z_df,
-                "z0_df": z0_df
-            }
+            return self._export_solution(sol_file)
         return None
 
-    def solve_fixed_y(self, y_values, solver_name="gurobi", tee=False, write_lp=False):
+    def solve_fixed_y(self, y_values: pd.DataFrame, solver_name="gurobi", tee=False, write_lp=False):
         """
         Solve the subproblem (MIP) for given protection levels y.
 
         Args:
-            y_values: dict {(i,j,k): y_val}
+            y_values: pd.DataFrame with columns ['Market', 'Services', 'FareClass', 'Protection_Level']
             solver_name: solver name
             tee: solver output
             write_lp: if True writes LP of subproblem
