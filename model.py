@@ -274,6 +274,14 @@ class SAAModel(BaseModel):
             g_sol.columns = ['Market', 'Services', 'FareClass', 'Scenario', 'Binary_G']
             g_sol.to_csv(self.output_dir / f'{self.model.name}_gsol.csv')
 
+            gap = 0.0
+            if hasattr(results.problem, 'upper_bound') and hasattr(results.problem, 'lower_bound'):
+                ub = results.problem.upper_bound
+                lb = results.problem.lower_bound
+                print(f'upper bound: {ub}, lower bound: {lb}')
+                if ub and lb and abs(lb) > 1e-10:
+                    gap = abs(ub - lb) / abs(lb)
+
             pd.Series({
                 'objective': pyo.value(self.model.obj),
                 'solve_time': solve_time,
