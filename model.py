@@ -254,7 +254,15 @@ class SAAModel(BaseModel):
             z_sol.index = pd.MultiIndex.from_tuples(z_sol.index, names=['Market', 'Services', 'FareClass', 'Scenario'])
             z_sol.reset_index(inplace=True)
             z_sol.columns = ['Market', 'Services', 'FareClass', 'Scenario', 'Sales']
-            z_sol.to_csv(self.output_dir / f'{self.model.name}_zsol.csv')
+            
+            # Add sales_per_attraction column: z_{ijks} / v_{ijk}
+            z_sol['sales_per_attraction'] = z_sol.apply(
+                lambda row: row['Sales'] / self.data.host_attraction.get((row['Market'], row['Services'], row['FareClass']), 1.0)
+                if self.data.host_attraction.get((row['Market'], row['Services'], row['FareClass']), 0) != 0 else 0.0,
+                axis=1
+            )
+            
+            z_sol.to_csv(self.output_dir / f'{self.model.name}_zsol.csv', index=False)
 
             g_sol = pd.DataFrame.from_dict(
                 {(i, j, k, s): self.model.g[i, j, k, s].value for (i, j, k) in self.model.N for s in self.model.S},
