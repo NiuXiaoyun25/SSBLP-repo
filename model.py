@@ -221,10 +221,6 @@ class SAAModel(BaseModel):
 
         return model
 
-    def pprint_model(self, model: pyo.ConcreteModel):
-        with open(self.output_dir / f'{model.name}.txt', 'w') as f:
-            model.pprint(ostream=f)
-
     def solve(self, sol_file: str, log_file: str, solver_name='gurobi', tee=True):
         solver = pyo.SolverFactory(solver_name)
         options = {
