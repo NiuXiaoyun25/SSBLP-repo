@@ -330,12 +330,11 @@ class SampleBasedNestedBigM(BaseModel):
         self.data = data_loader
         self.sample_size = sample_size
         self.sample_id = sample_id
-        self.bigM_vals = self._compute_big_m()  # compute big-M values based on demand samples
+        self.bigM_vals = self._compute_big_m()  
         self._make_output_dir(output_dir) 
         self.model = self._build_model(model_name)
 
     def _compute_big_m(self):
-        # override to compute big-M based on demand samples
         rmg_cap_M = {}
         sales_bound_M = {}
 
