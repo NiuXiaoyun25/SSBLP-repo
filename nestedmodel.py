@@ -303,24 +303,46 @@ class NestedBigM(BaseModel):
             "protection_levels_df": sol_df,
             "z_df": z_df,
             "z0_df": z0_df,
-            "lambda_df": lam_df,
         }
 
-    def solve(self, sol_file: str, log_file: str, solver_name="gurobi", tee=True):
+    def solve(self, sol_file: str, log_file: str, solver_name="gurobi", tee=True, time_limit=None):
+        print(f'Solving NestedBigM model: {self.model.name}')
         solver = pyo.SolverFactory(solver_name)
         options = {
             "LogFile": str(self.output_dir / log_file),
             "LogToConsole": 1 if tee else 0,
         }
+        if time_limit:
+            options["TimeLimit"] = time_limit
 
         # Write LP file before solving
         lp_path = self.output_dir / (self.model.name + '.lp')
         self.model.write(str(lp_path), io_options={'symbolic_solver_labels': True})
 
+        start_time = time.time()
         results = solver.solve(self.model, tee=tee, options=options)
+        runtime = time.time() - start_time
 
-        if results.solver.termination_condition == TerminationCondition.optimal:
-            return self._export_solution(sol_file)
+        # Extract gap for MIP
+        gap = 0.0
+        if hasattr(results.problem, 'upper_bound') and hasattr(results.problem, 'lower_bound'):
+            ub = results.problem.upper_bound
+            lb = results.problem.lower_bound
+            if ub and lb and abs(lb) > 1e-10:
+                gap = abs(ub - lb) / abs(lb)
+
+        stats = {
+            "runtime": runtime,
+            "gap": gap,
+            "termination_condition": str(results.solver.termination_condition),
+            "solver_status": str(results.solver.status),
+        }
+        pd.DataFrame([stats]).to_csv(self.output_dir / f"{self.model.name}_stats.csv", index=False)
+
+        if results.solver.termination_condition in [TerminationCondition.optimal, TerminationCondition.maxTimeLimit]:
+            solution = self._export_solution(sol_file)
+            solution.update(stats)
+            return solution
         return None
 
 
