@@ -251,7 +251,7 @@ class NestedBigM(BaseModel):
         m.sales_lower2 = pyo.Constraint(m.N, rule=sales_lower_2)
 
         def R_def(m, i, j, k):
-            fares = sorted([chr(ord("A") + r) for r in range(8)], reverse=True)
+            fares = sorted({fc for (mkt, svc, fc) in m.N if mkt == i and svc == j}, reverse=True)
             y_sum = sum(m.y[i, j, fc] for fc in fares if ord(fc) >= ord(k))
             z_sum = sum(m.z[i, j, fc] for fc in fares if ord(fc) > ord(k))
 
