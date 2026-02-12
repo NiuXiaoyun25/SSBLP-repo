@@ -33,7 +33,7 @@ class NestedLP(BaseModel):
         # Variables
         m.z = pyo.Var(m.N, domain=pyo.NonNegativeReals)       # realized sales per product
         m.z0 = pyo.Var(m.I, domain=pyo.NonNegativeReals)      # outside option market sales
-        m.y = pyo.Var(m.N, domain=pyo.NonNegativeReals)   # protection levels
+        m.y = pyo.Var(m.N, domain=pyo.NonNegativeReals)  
         m.lmbda = pyo.Var(m.I, domain=pyo.NonNegativeReals)   # lambda_i
 
         # Objective: (5a) maximize sum r_{i,j,k} * z_{i,j,k}
