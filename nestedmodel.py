@@ -64,22 +64,12 @@ class NestedLP(BaseModel):
             return m.z0[i] >= self.data.OA_attraction[i] * m.lmbda[i]
         m.outside_lower = pyo.Constraint(m.I, rule=outside_lower)
 
-        fares = sorted([chr(ord("A") + r) for r in range(8)], reverse=True)
-        # (5f) nesting with protection levels y:
-        # z_ijH <= y_ijH
-        # z_ijG + z_ijH <= y_ijG + y_ijH
-        # z_ijF + z_ijG + z_ijH <= y_ijF + y_ijG + y_ijH
-        # ...
-        # z_ijA + ... + z_ijH <= y_ijA + ... + y_ijH
+        # Use dynamic fare classes available in m.N for each (i,j)
         def nesting_rule(m, i, j, k):
-            ij_products = [(mkt, svc, fc) for (mkt, svc, fc) in m.N if mkt == i and svc == j]
-            ij_fares = sorted(set(fc for (_, _, fc) in ij_products), reverse=True)  # H, G, F, ..., A
-            
-            # For fare class k, sum all sales from k down to the highest fare class
-            # (k and all higher fare classes)
+            ij_fares = sorted({fc for (mkt, svc, fc) in m.N if mkt == i and svc == j}, reverse=True)
+            # For fare class k, sum all sales from k up to the highest fare class
             lhs = sum(m.z[i, j, fc] for fc in ij_fares if ord(fc) >= ord(k))
             rhs = sum(m.y[i, j, fc] for fc in ij_fares if ord(fc) >= ord(k))
-            
             return lhs <= rhs
         m.nesting = pyo.Constraint(m.N, rule=nesting_rule)
 
