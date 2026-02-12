@@ -1,11 +1,12 @@
 from collections import namedtuple
 import pyomo.environ as pyo
 from pyomo.environ import *
+import time
 
 import os
 import pandas as pd
 from dataloader import *
-from model import BaseModel
+from model import BaseModel, add_cross_scenario_monotonicity
 
 class NestedLP(BaseModel):
     def __init__(
