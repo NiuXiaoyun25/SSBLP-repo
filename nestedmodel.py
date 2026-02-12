@@ -169,7 +169,6 @@ class NestedBigM(BaseModel):
         self.model = self._build_model(model_name)
 
     def _compute_big_m(self):
-        # Calculate big-M values more safely
         # Note: 'A' is highest fare class, 'H' is lowest fare class
         M = {}
         for (i, j, k) in self.data.products:
@@ -196,7 +195,7 @@ class NestedBigM(BaseModel):
         # Variables
         m.z = pyo.Var(m.N, domain=pyo.NonNegativeReals)       # realized sales per product
         m.z0 = pyo.Var(m.I, domain=pyo.NonNegativeReals)      # outside option market sales
-        m.y = pyo.Var(m.N, domain=pyo.NonNegativeReals)   # protection levels
+        m.y = pyo.Var(m.N, domain=pyo.NonNegativeReals)
         m.g = pyo.Var(m.N, domain=pyo.Binary)     # big-M binary variables
         m.R = pyo.Var(m.N, domain=pyo.NonNegativeReals)  
   
@@ -274,7 +273,7 @@ class NestedBigM(BaseModel):
         sol_df.columns = ['Market', 'Services', 'FareClass', 'Protection_Level']
         sol_df.to_csv(self.output_dir / sol_file, index=False)
 
-        # export z, z0, lambda and objective for inspection
+        # export z, z0 and objective for inspection
         z_df = pd.DataFrame(
             [(i, j, k, pyo.value(self.model.z[i, j, k]), 
               pyo.value(self.model.z[i, j, k]) / self.data.host_attraction[(i, j, k)]) 
@@ -534,7 +533,7 @@ class SampleBasedNestedLP(BaseModel):
         m.y = pyo.Var(m.N, domain=pyo.NonNegativeReals)   # protection levels
         m.lmbda = pyo.Var(m.I, m.S, domain=pyo.NonNegativeReals)   
 
-        # Objective: (5a) maximize sum r_{i,j,k} * z_{i,j,k}
+        # Objective: maximize sum r_{i,j,k} * z_{i,j,k}
         def obj_rule(m):
             return 1 / self.sample_size * sum(self.data.r[i, j, k] * m.z[i, j, k, s] for (i, j, k) in m.N for s in m.S)
         m.obj = pyo.Objective(rule=obj_rule, sense=maximize)
