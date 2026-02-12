@@ -397,15 +397,11 @@ class SampleBasedNestedBigM(BaseModel):
             higher_class = chr(ord(k) - 1) if ord(k) > ord('A') else None 
             if higher_class:
                 # z_{ijk}^{s} <= (v_{ijk} / v_{ij,k-1}) * z_{ij,k-1}^{s}
-                ratio = (self.data.host_attraction[(i, j, k)] / 
-                        self.data.host_attraction[(i, j, higher_class)])
+                ratio = (self.data.host_attraction[(i, j, k)] / self.data.host_attraction[(i, j, higher_class)])
                 return m.z[i, j, k, s] <= ratio * m.z[i, j, higher_class, s]
-            elif k == 'A':  # highest fare class
-                # z_ijA^{s} <= (v_{ijA} / v_{i0}) * z_{i0}^{s}
+            else:
                 ratio = self.data.host_attraction[(i, j, k)] / self.data.OA_attraction[i]
                 return m.z[i, j, k, s] <= ratio * m.z0[i, s]
-            else:
-                return pyo.Constraint.Skip
         m.sales_ub_2 = pyo.Constraint(m.N, m.S, rule=sales_nesting_bound)
 
         def sales_lower_1(m, i, j, k, s):
