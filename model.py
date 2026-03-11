@@ -87,6 +87,45 @@ class MILPModel(BaseModel):
 
         return model
 
+    def add_random_constraints(self, num_constraints: int, seed: int = 42):
+        """
+        Add random linear constraints of the form A * y <= b.
+        Ensures feasibility by constructing constraints around a feasible point.
+
+        Args:
+            num_constraints: Number of random constraints to add
+            seed: Random seed for reproducibility (ensures same constraints across models)
+        """
+        import numpy as np
+
+        np.random.seed(seed)
+
+        products = list(self.model.N)
+        num_products = len(products)
+
+        avg_demand = np.mean(list(self.data.mean_market_demand.values()))
+        avg_capacity = self.data.flights['CapRmng'].mean()
+        scale = min(avg_demand, avg_capacity) / len(products)**0.5
+
+        y_feasible = np.random.uniform(0.1 * scale, 0.5 * scale, num_products)
+
+        A = np.random.uniform(-1, 1, (num_constraints, num_products))
+
+        margin = np.random.uniform(1, 10, num_constraints)
+        b = A @ y_feasible + margin
+
+        self.random_A = A
+        self.random_b = b
+        self.random_products = products
+
+        def random_constraint_rule(model, c_idx):
+            return sum(A[c_idx, p_idx] * model.y[products[p_idx]]
+                       for p_idx in range(num_products)) <= b[c_idx]
+
+        self.model.random_constraints = pyo.Constraint(
+            range(num_constraints),
+            rule=random_constraint_rule
+        )
     def solve(self, sol_file: str, log_file: str, solver_name='gurobi', tee=True):
         solver = pyo.SolverFactory(solver_name)
         options = {
