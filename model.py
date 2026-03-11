@@ -198,6 +198,10 @@ class StochasticNN(BaseModel):
         self._calculate_model_parameters()   # big-M
         self._make_output_dir(output_dir)
         self.model = self._build_model(model_name)
+        
+        # Add random constraints if requested
+        if num_random_constraints > 0:
+            self.add_random_constraints(num_random_constraints, random_seed)
 
     def _calculate_model_parameters(self):
         """Calculate derived model parameters"""
