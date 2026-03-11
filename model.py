@@ -185,10 +185,15 @@ class MILPModel(BaseModel):
         return None
 
 
-class SAAModel(BaseModel):
-    """SAA model for choice-based demand with stockout substitution (MILP)."""
-    
-    def __init__(self, model_name: str, output_dir: Path, data_loader: AirlineDataLoader):
+class StochasticNN(BaseModel):  
+    def __init__(
+        self,
+        model_name: str,
+        output_dir: Path,
+        data_loader: AirlineDataLoader,
+        num_random_constraints: int = 0,
+        random_seed: int = 42,
+    ):
         self.data = data_loader
         self._calculate_model_parameters()   # big-M
         self._make_output_dir(output_dir)
