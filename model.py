@@ -51,31 +51,31 @@ class MILPModel(BaseModel):
       
         # Objective
         def objective_rule(model):
-            return sum(model.z[i, j, k] * self.data.r[i, j, k] 
+            return sum(model.z[i, j, k] * self.data.r[i, j, k] * self.data.host_attraction[i, j, k]
                        for (i, j, k) in model.N)
         model.obj = pyo.Objective(rule=objective_rule, sense=maximize)
         
         # Constraints
         def demand_balance_rule(model, i):
             return (self.data.OA_attraction[i] * model.z0[i]
-                    + sum(model.z[mkt, j, k] for (mkt, j, k) in model.N if mkt == i)
+                    + sum(model.z[mkt, j, k] * self.data.host_attraction[i, j, k] for (mkt, j, k) in model.N if mkt == i)
                     == self.data.mean_market_demand[i])
         model.demand_balance = pyo.Constraint(model.I, rule=demand_balance_rule)
         
         def sales_upper_rule1(model, i, j, k):
-            return model.z[i, j, k] <= model.y[i, j, k]
+            return model.z[i, j, k] <= model.y[i, j, k] / self.data.host_attraction[i, j, k]
         model.sales_upper1 = pyo.Constraint(model.N, rule=sales_upper_rule1)
 
         def sales_upper_rule2(model, i, j, k):
-            return model.z[i, j, k] <= model.z0[i] * self.data.host_attraction[i, j, k]
+            return model.z[i, j, k] <= model.z0[i]
         model.sales_upper2 = pyo.Constraint(model.N, rule=sales_upper_rule2)
 
         def bigM_rule1(model, i, j, k):
-            return (model.z[i, j, k] >= model.y[i, j, k] - self.M * (1 - model.g[i, j, k]))
+            return (model.z[i, j, k] >= model.y[i, j, k] / self.data.host_attraction[i, j, k] - self.M * (1 - model.g[i, j, k]))
         model.bigM1 = pyo.Constraint(model.N, rule=bigM_rule1)
 
         def bigM_rule2(model, i, j, k):
-            return model.z[i, j, k] >=model.z0[i] * self.data.host_attraction[i, j, k] - self.M * model.g[i, j, k]
+            return model.z[i, j, k] >=model.z0[i] - self.M * model.g[i, j, k]
         model.bigM2 = pyo.Constraint(model.N, rule=bigM_rule2)
 
         # capacity constraints.
