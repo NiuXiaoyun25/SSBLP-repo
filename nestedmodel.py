@@ -346,7 +346,7 @@ class NestedBigM(BaseModel):
         return None
 
 
-class SampleBasedNestedBigM(BaseModel):
+class SNested(BaseModel):
     def __init__(
         self,
         model_name: str,
@@ -354,6 +354,8 @@ class SampleBasedNestedBigM(BaseModel):
         data_loader: AirlineDataLoader,
         sample_size: int,
         sample_id: int,
+        num_random_constraints: int = 0,
+        random_seed: int = 42,
     ):
         self.data = data_loader
         self.sample_size = sample_size
@@ -361,6 +363,10 @@ class SampleBasedNestedBigM(BaseModel):
         self.bigM_vals = self._compute_big_m()  
         self._make_output_dir(output_dir) 
         self.model = self._build_model(model_name)
+        
+        # Add random constraints if requested
+        if num_random_constraints > 0:
+            self.add_random_constraints(num_random_constraints, random_seed)
 
     def _compute_big_m(self):
         rmg_cap_M = {}
@@ -390,15 +396,15 @@ class SampleBasedNestedBigM(BaseModel):
         m.S = pyo.Set(initialize=range(1, self.sample_size + 1))  # demand samples
 
         # Variables
-        m.z = pyo.Var(m.N, m.S, domain=pyo.NonNegativeReals)       # realized sales per product
-        m.z0 = pyo.Var(m.I, m.S, domain=pyo.NonNegativeReals)      # outside option market sales
-        m.y = pyo.Var(m.N, domain=pyo.NonNegativeReals)   # protection levels
-        m.g = pyo.Var(m.N, m.S, domain=pyo.Binary)     # big-M binary variables
+        m.x = pyo.Var(m.N, m.S, domain=pyo.NonNegativeReals)       # realized sales per product
+        m.x0 = pyo.Var(m.I, m.S, domain=pyo.NonNegativeReals)      # outside option market sales
+        m.y = pyo.Var(m.N, domain=pyo.NonNegativeReals)
+        m.g = pyo.Var(m.N, m.S, domain=pyo.Binary)
         m.R = pyo.Var(m.N, m.S, domain=pyo.NonNegativeReals)
 
-        # Objective: maximize sum r_{i,j,k} * z_{i,j,k}
+        # Objective: maximize sum r_{i,j,k} * x_{i,j,k}
         def obj_rule(m):
-            return 1/self.sample_size * sum(self.data.r[i, j, k] * m.z[i, j, k, s] for (i, j, k) in m.N for s in m.S)
+            return 1/self.sample_size * sum(self.data.r[i, j, k] * m.x[i, j, k, s] for (i, j, k) in m.N for s in m.S)
         m.obj = pyo.Objective(rule=obj_rule, sense=maximize)
 
         # capacity constraints.
@@ -411,48 +417,50 @@ class SampleBasedNestedBigM(BaseModel):
         # Demand balance
         def demand_balance_rule(model, i, s):
             return (
-                    model.z0[i, s] + sum(model.z[mkt, j, k, s] for (mkt, j, k) in model.N if mkt == i) 
+                    model.x0[i, s] + sum(model.x[mkt, j, k, s] for (mkt, j, k) in model.N if mkt == i) 
                     == self.data.ds_dict[(i, s)]
                     )
         m.demand_balance = pyo.Constraint(m.I, m.S, rule=demand_balance_rule)
 
-        # z_{ijk}^{s} <= R_{ijk}^{s}
+        # x_{ijk}^{s} <= R_{ijk}^{s}
         def sales_bound_by_cap(m, i, j, k, s):
-            return m.z[i, j, k, s] <= m.R[i, j, k, s]
+            return m.x[i, j, k, s] <= m.R[i, j, k, s]
         m.sales_ub_1 = pyo.Constraint(m.N, m.S, rule=sales_bound_by_cap)
 
         def sales_nesting_bound(m, i, j, k, s):
             higher_class = chr(ord(k) - 1) if ord(k) > ord('A') else None 
             if higher_class:
-                # z_{ijk}^{s} <= (v_{ijk} / v_{ij,k-1}) * z_{ij,k-1}^{s}
+                # x_{ijk}^{s} <= (v_{ijk} / v_{ij,k-1}) * x_{ij,k-1}^{s}
                 ratio = (self.data.host_attraction[(i, j, k)] / self.data.host_attraction[(i, j, higher_class)])
-                return m.z[i, j, k, s] <= ratio * m.z[i, j, higher_class, s]
+                return m.x[i, j, k, s] <= ratio * m.x[i, j, higher_class, s]
             else:
                 ratio = self.data.host_attraction[(i, j, k)] / self.data.OA_attraction[i]
-                return m.z[i, j, k, s] <= ratio * m.z0[i, s]
+                return m.x[i, j, k, s] <= ratio * m.x0[i, s]
         m.sales_ub_2 = pyo.Constraint(m.N, m.S, rule=sales_nesting_bound)
 
         def sales_lower_1(m, i, j, k, s):
-            return m.z[i, j, k, s] >= m.R[i, j, k, s] - self.bigM_vals.rmg_cap_M[i, j, k] * m.g[i, j, k, s]
+            return m.x[i, j, k, s] >= m.R[i, j, k, s] - self.bigM_vals.rmg_cap_M[i, j, k] * m.g[i, j, k, s]
         m.sales_lower1 = pyo.Constraint(m.N, m.S, rule=sales_lower_1)
 
-        # z_{ijk} >= v_{ijk} / v_{ij,k-1} * z_{ij,k-1} - M * (1 - g_{ijk})
+        # x_{ijk} >= v_{ijk} / v_{ij,k-1} * x_{ij,k-1} - M * (1 - g_{ijk})
         def sales_lower_2(m, i, j, k, s):
             higher_class = chr(ord(k) - 1) if ord(k) > ord('A') else None
             if higher_class:
                 ratio = (self.data.host_attraction[(i, j, k)] / self.data.host_attraction[(i, j, higher_class)])
-                return m.z[i, j, k, s] >= (ratio * m.z[i, j, higher_class, s] 
+                return m.x[i, j, k, s] >= (ratio * m.x[i, j, higher_class, s] 
                                            - self.bigM_vals.sales_bound_M[(i, j, k)] * (1 - m.g[i, j, k, s]))
             else:
-                return pyo.Constraint.Skip
+                ratio = self.data.host_attraction[(i, j, k)] / self.data.OA_attraction[i]
+                return m.x[i, j, k, s] >= (ratio * m.x0[i, s] 
+                                           - self.bigM_vals.sales_bound_M[(i, j, k)] * (1 - m.g[i, j, k, s]))
         m.sales_lower2 = pyo.Constraint(m.N, m.S, rule=sales_lower_2)
 
         def R_def(m, i, j, k, s):
-            fares = sorted([chr(ord("A") + r) for r in range(8)], reverse=True)
+            fares = sorted({fc for (mkt, svc, fc) in m.N if mkt == i and svc == j}, reverse=True)
             y_sum = sum(m.y[i, j, fc] for fc in fares if ord(fc) >= ord(k))
-            z_sum = sum(m.z[i, j, fc, s] for fc in fares if ord(fc) > ord(k))
+            x_sum = sum(m.x[i, j, fc, s] for fc in fares if ord(fc) > ord(k))
 
-            return m.R[i, j, k, s] == y_sum - z_sum
+            return m.R[i, j, k, s] == y_sum - x_sum
         m.R_def = pyo.Constraint(m.N, m.S, rule=R_def)
 
         return m
